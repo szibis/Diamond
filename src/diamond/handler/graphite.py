@@ -50,6 +50,8 @@ class GraphiteHandler(Handler):
         self.flow_info = self.config['flow_info']
         self.scope_id = self.config['scope_id']
         self.metrics = []
+        self.reconnects = int(self.config['reconnects'])
+        self.counter = int(0)
 
         # Connect
         self._connect()
@@ -72,6 +74,7 @@ class GraphiteHandler(Handler):
             'keepaliveinterval': 'How frequently to send keepalives',
             'flow_info': 'IPv6 Flow Info',
             'scope_id': 'IPv6 Scope ID',
+            'reconnects': 'After how many successfull batch sends reconnect will happend',
         })
 
         return config
@@ -94,6 +97,7 @@ class GraphiteHandler(Handler):
             'keepaliveinterval': 10,
             'flow_info': 0,
             'scope_id': 0,
+            'reconnects': 30
         })
 
         return config
@@ -152,6 +156,15 @@ class GraphiteHandler(Handler):
                     # Send data to socket
                     self._send_data(''.join(self.metrics))
                     self.metrics = []
+                    self.counter = self.counter + 1
+                    if self.counter == self.reconnects:
+                       self._close()
+                       try:
+                          self._connect()
+                          self.log.error("Reconnect after %s successful metrics send" % (self.reconnects * self.batch_size))
+                          self.counter = 0
+                       except Exception:
+                          self.log.error("Failed to reconnect")
             except Exception:
                 self._close()
                 self._throttle_error("GraphiteHandler: Error sending metrics.")
@@ -210,7 +223,7 @@ class GraphiteHandler(Handler):
             return
         # Enable keepalives?
         if self.proto != 'udp' and self.keepalive:
-            self.log.error("GraphiteHandler: Setting socket keepalives...")
+            self.log.debug("GraphiteHandler: Setting socket keepalives...")
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE,
                                    self.keepaliveinterval)
