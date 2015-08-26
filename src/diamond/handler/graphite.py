@@ -159,12 +159,9 @@ class GraphiteHandler(Handler):
                     self.counter = self.counter + 1
                     if self.counter == self.reconnects:
                        self._close()
-                       try:
-                          self._connect()
-                          self.log.error("Reconnect after %s successful metrics send" % (self.reconnects * self.batch_size))
-                          self.counter = 0
-                       except Exception:
-                          self.log.error("Failed to reconnect")
+                       self._connect()
+                       self.log.debug("Reconnect after %s successful metrics send" % (self.reconnects * self.batch_size))
+                       self.counter = 0
             except Exception:
                 self._close()
                 self._throttle_error("GraphiteHandler: Error sending metrics.")
